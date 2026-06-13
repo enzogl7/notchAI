@@ -1,6 +1,6 @@
 import Foundation
 
-final class ProcessMonitorService {
+final class ProcessMonitorService: Sendable {
 
     func isProcessRunning(named processName: String) -> Bool {
 

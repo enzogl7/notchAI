@@ -2,17 +2,20 @@ import SwiftUI
 
 struct ContentView: View {
 
-    @StateObject private var agentMonitor = AgentMonitor()
+    @EnvironmentObject private var agentMonitor: AgentMonitor
 
     var body: some View {
 
         VStack(alignment: .leading, spacing: 12) {
 
             Text("NotchAI")
-                .font(.title)
+                .font(.headline)
 
             ForEach(agentMonitor.agents) { agent in
                 HStack {
+                    Image(systemName: agent.icon)
+                        .frame(width: 20)
+
                     Text(agent.name)
 
                     Spacer()
@@ -20,11 +23,15 @@ struct ContentView: View {
                     Text(agent.isRunning ? "🟢 Online" : "🔴 Offline")
                 }
             }
+
+            Divider()
+
+            Button("Quit NotchAI") {
+                NSApp.terminate(nil)
+            }
+            .keyboardShortcut("q")
         }
         .padding()
-        .frame(width: 320, height: 220)
-        .onAppear {
-            agentMonitor.startMonitoring()
-        }
+        .frame(width: 260)
     }
 }

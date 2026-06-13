@@ -4,30 +4,49 @@ import Combine
 @MainActor
 final class AgentMonitor: ObservableObject {
 
-    @Published var agents: [Agent] = [
-        Agent(name: "Claude", isRunning: false),
-        Agent(name: "Codex", isRunning: false),
-        Agent(name: "Gemini", isRunning: false),
-        Agent(name: "OpenCode", isRunning: false)
-    ]
+    @Published var agents: [Agent] = Agent.builtIn
+    @Published var sessions: [AgentSession] = []
+
+    var activeCount: Int {
+        agents.filter(\.isRunning).count
+    }
 
     private let monitor = ProcessMonitorService()
+    private let sessionService = ClaudeSessionService()
     private var timer: Timer?
 
     func startMonitoring() {
 
+        guard timer == nil else { return }
+
         updateAgents()
 
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-            self.updateAgents()
+            Task { @MainActor in
+                self.updateAgents()
+            }
         }
     }
 
     private func updateAgents() {
 
-        agents[0].isRunning = monitor.isProcessRunning(named: "claude")
-        agents[1].isRunning = monitor.isProcessRunning(named: "codex")
-        agents[2].isRunning = monitor.isProcessRunning(named: "gemini")
-        agents[3].isRunning = monitor.isProcessRunning(named: "opencode")
+        let snapshot = agents
+        let monitor = monitor
+        let sessionService = sessionService
+
+        Task.detached(priority: .utility) {
+            let updated = snapshot.map { agent -> Agent in
+                var agent = agent
+                agent.isRunning = monitor.isProcessRunning(named: agent.processName)
+                return agent
+            }
+
+            let sessions = sessionService.activeSessions()
+
+            await MainActor.run {
+                self.agents = updated
+                self.sessions = sessions
+            }
+        }
     }
 }
