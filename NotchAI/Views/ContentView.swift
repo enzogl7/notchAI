@@ -26,6 +26,14 @@ struct ContentView: View {
 
             Divider()
 
+            Button(HookInstaller.areInstalled ? "Remove Claude Hooks" : "Install Claude Hooks") {
+                if HookInstaller.areInstalled {
+                    agentMonitor.removeHooks()
+                } else {
+                    try? HookInstaller.install()
+                }
+            }
+
             Button("Quit NotchAI") {
                 NSApp.terminate(nil)
             }
