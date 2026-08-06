@@ -6,35 +6,27 @@ struct NotchView: View {
     @EnvironmentObject private var notchState: NotchState
 
     var body: some View {
-        ZStack(alignment: .top) {
-            BottomRoundedRectangle(radius: 18)
-                .fill(.black)
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                Color.black
 
-            content
-                .padding(.top, notchState.topInset)
+                expanded
+                    .frame(width: geo.size.width)
+                    .padding(.top, notchState.topInset)
+            }
+            .frame(
+                width: notchState.isExpanded ? geo.size.width : notchState.notchWidth,
+                height: notchState.isExpanded ? geo.size.height : notchState.topInset,
+                alignment: .top
+            )
+            .clipShape(BottomRoundedRectangle(radius: 18))
+            .shadow(
+                color: .black.opacity(notchState.isExpanded ? 0.4 : 0),
+                radius: 12,
+                y: 6
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        if notchState.isExpanded {
-            expanded.transition(.opacity)
-        } else {
-            collapsed.transition(.opacity)
-        }
-    }
-
-    private var collapsed: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "brain")
-            Text("\(agentMonitor.activeCount)")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .contentTransition(.numericText())
-        }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 5)
     }
 
     private var expanded: some View {
@@ -94,17 +86,20 @@ struct NotchView: View {
     }
 
     private var agentsSection: some View {
-        ForEach(agentMonitor.agents) { agent in
-            HStack(spacing: 8) {
-                Image(systemName: agent.icon)
-                    .frame(width: 18)
-                Text(agent.name)
-                    .font(.system(size: 12))
-                Spacer()
-                Circle()
-                    .fill(agent.isRunning ? Color.green : Color.white.opacity(0.25))
-                    .frame(width: 7, height: 7)
+        HStack(spacing: 18) {
+            ForEach(agentMonitor.agents) { agent in
+                HStack(spacing: 6) {
+                    Image(systemName: agent.icon)
+                        .font(.system(size: 11))
+                    Text(agent.name)
+                        .font(.system(size: 11))
+                    Circle()
+                        .fill(agent.isRunning ? Color.green : Color.white.opacity(0.25))
+                        .frame(width: 6, height: 6)
+                }
+                .opacity(agent.isRunning ? 1 : 0.45)
             }
+            Spacer(minLength: 0)
         }
     }
 }

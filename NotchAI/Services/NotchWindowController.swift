@@ -10,19 +10,20 @@ final class NotchWindowController {
     private let notchState: NotchState
     private var cancellables = Set<AnyCancellable>()
     private var hoverTimer: Timer?
+    private var hoverTicks = 0
 
-    private func collapsedSize(topInset: CGFloat, notchWidth: CGFloat) -> CGSize {
-        CGSize(width: max(notchWidth, 180), height: topInset + 28)
-    }
+    private let tickInterval: TimeInterval = 0.1
+    private let ticksToOpen = 3
+    private let ticksToClose = 2
+    private let hoverSlack: CGFloat = 6
 
     private func expandedSize(topInset: CGFloat, notchWidth: CGFloat) -> CGSize {
-        let agentsHeight = CGFloat(agentMonitor.agents.count) * 28
         let sessionsHeight = agentMonitor.sessions.isEmpty
             ? 0
             : CGFloat(agentMonitor.sessions.count) * 36 + 24
         return CGSize(
-            width: max(notchWidth, 320),
-            height: topInset + 64 + agentsHeight + sessionsHeight
+            width: max(notchWidth, 480),
+            height: topInset + 92 + sessionsHeight
         )
     }
 
@@ -41,16 +42,16 @@ final class NotchWindowController {
         installHostingView()
         observe()
 
-        syncTopInset()
+        syncScreenMetrics()
         reposition()
-        panel.orderFrontRegardless()
         startHoverTracking()
     }
 
     private func configurePanel() {
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
         panel.level = .statusBar
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
@@ -88,8 +89,8 @@ final class NotchWindowController {
         notchState.$isExpanded
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.reposition()
+            .sink { [weak self] isExpanded in
+                self?.panel.ignoresMouseEvents = !isExpanded
             }
             .store(in: &cancellables)
 
@@ -98,8 +99,7 @@ final class NotchWindowController {
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                guard let self, self.notchState.isExpanded else { return }
-                self.reposition()
+                self?.reposition()
             }
             .store(in: &cancellables)
 
@@ -107,14 +107,14 @@ final class NotchWindowController {
             .publisher(for: NSApplication.didChangeScreenParametersNotification)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.syncTopInset()
+                self?.syncScreenMetrics()
                 self?.reposition()
             }
             .store(in: &cancellables)
     }
 
     private func startHoverTracking() {
-        hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        hoverTimer = Timer.scheduledTimer(withTimeInterval: tickInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.updateHover()
             }
@@ -122,37 +122,68 @@ final class NotchWindowController {
     }
 
     private func updateHover() {
-        let inside = panel.frame.contains(NSEvent.mouseLocation)
-        guard notchState.isExpanded != inside else { return }
+        guard let screen = targetScreen, screen.hasNotch else { return }
+
+        let target = notchState.isExpanded ? panel.frame : hoverRect(on: screen)
+        let inside = target.contains(NSEvent.mouseLocation)
+        let desired = inside && !(!notchState.isExpanded && screen.isFullScreenActive)
+
+        guard desired != notchState.isExpanded else {
+            hoverTicks = 0
+            return
+        }
+
+        hoverTicks += 1
+        guard hoverTicks >= (desired ? ticksToOpen : ticksToClose) else { return }
+        hoverTicks = 0
+
         withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-            notchState.isExpanded = inside
+            notchState.isExpanded = desired
         }
     }
 
-    private var targetScreen: NSScreen? {
-        NSScreen.screens.first(where: \.hasNotch) ?? .main
+    private func hoverRect(on screen: NSScreen) -> NSRect {
+        let rect = screen.notchRect
+        return NSRect(
+            x: rect.minX,
+            y: rect.minY - hoverSlack,
+            width: rect.width,
+            height: rect.height + hoverSlack
+        )
     }
 
-    private func syncTopInset() {
+    private var targetScreen: NSScreen? {
+        NSScreen.screens.first(where: \.hasNotch)
+    }
+
+    private func syncScreenMetrics() {
         notchState.topInset = targetScreen?.notchTopInset ?? 0
+        notchState.notchWidth = targetScreen?.notchWidth ?? 0
     }
 
     private func reposition() {
-        guard let screen = targetScreen else { return }
+        guard let screen = targetScreen else {
+            notchState.isExpanded = false
+            panel.orderOut(nil)
+            return
+        }
 
         let topInset = screen.notchTopInset
         let notchWidth = screen.notchWidth
 
-        let size = notchState.isExpanded
-            ? expandedSize(topInset: topInset, notchWidth: notchWidth)
-            : collapsedSize(topInset: topInset, notchWidth: notchWidth)
+        let size = expandedSize(topInset: topInset, notchWidth: notchWidth)
 
         let originX = screen.frame.midX - size.width / 2
         let originY = screen.frame.maxY - size.height
 
         let frame = NSRect(x: originX, y: originY, width: size.width, height: size.height)
 
-        guard frame != panel.frame else { return }
-        panel.setFrame(frame, display: true)
+        if frame != panel.frame {
+            panel.setFrame(frame, display: true)
+        }
+
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
     }
 }

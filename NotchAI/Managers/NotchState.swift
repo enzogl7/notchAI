@@ -7,4 +7,6 @@ final class NotchState: ObservableObject {
     @Published var isExpanded = false
 
     @Published var topInset: CGFloat = 0
+
+    @Published var notchWidth: CGFloat = 0
 }
