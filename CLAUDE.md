@@ -58,12 +58,13 @@ O Claude Code dispara hooks (`PreToolUse`, `PostToolUse`, `Stop`, `Notification`
 - **`NotchAIApp.swift`** — `@main`. Monta o `MenuBarExtra` (estilo `.window`) com a contagem `🧠 N` no label.
 - **`AppDelegate.swift`** — ponto de entrada AppKit: cria o estado compartilhado, inicia o monitoramento e ancora o painel da notch.
 - **`Views/ContentView.swift`** — conteúdo do `MenuBarExtra`: lista de agentes com status 🟢/🔴 e botão de sair.
-- **`Views/NotchView.swift`** — UI na notch (Dynamic Island). Colapsada: `🧠` + contagem; expandida no hover: sessões ativas do Claude (projeto + branch + estado colorido) e lista de agentes por presença.
-- **`Managers/NotchState.swift`** — estado de apresentação da notch (`isExpanded`, `topInset`), compartilhado entre view e controller.
-- **`Services/NotchWindowController.swift`** — cria e posiciona o `NSPanel` borderless ancorado na notch; redimensiona entre colapsado/expandido. ⚠️ Sensível, duas armadilhas já resolvidas:
+- **`Views/NotchView.swift`** — UI na notch (Dynamic Island). Colapsada é **invisível**: a caixa preta tem exatamente o tamanho da notch, escondida atrás do recorte físico. Expandida no hover: sessões ativas do Claude (projeto + branch + estado colorido) e os agentes numa linha horizontal. O conteúdo fica sempre montado em largura fixa e é **recortado pela caixa** (`.clipShape`) — não use transição/delay próprios pra revelá-lo, foi assim que o fundo e o conteúdo saíam de fase.
+- **`Managers/NotchState.swift`** — estado de apresentação da notch (`isExpanded`, `topInset`, `notchWidth`), compartilhado entre view e controller.
+- **`Services/NotchWindowController.swift`** — cria e posiciona o `NSPanel` borderless ancorado na notch. ⚠️ Sensível, três armadilhas já resolvidas:
   - **Crash (SIGABRT):** não anime o frame da janela via AppKit; a suavidade fica por conta da animação do *conteúdo* SwiftUI.
-  - **Flicker infinito no hover:** o hover é detectado por **posição do mouse** (timer 10Hz testando `panel.frame.contains(NSEvent.mouseLocation)`), **não** por `.onHover` do SwiftUI. O `.onHover` entrava em loop expande↔colapsa porque o `setFrame` reconstrói as tracking areas e dispara `mouseExited`/`mouseEntered` espúrios. Não volte a usar `.onHover` neste painel.
-- **`Services/NotchScreen.swift`** — geometria da notch a partir do `NSScreen`: `hasNotch`, `notchWidth`, `notchTopInset`, etc.
+  - **Flicker infinito no hover:** o hover é detectado por **posição do mouse** (timer 10Hz), **não** por `.onHover` do SwiftUI. O `.onHover` entrava em loop expande↔colapsa porque o `setFrame` reconstrói as tracking areas e dispara `mouseExited`/`mouseEntered` espúrios. Não volte a usar `.onHover` neste painel.
+  - **O painel não redimensiona no hover:** ele vive permanentemente no tamanho expandido; `setFrame` só em mudança de tela ou de nº de sessões. O alvo do hover é o `notchRect` (+6pt) quando colapsado e o `panel.frame` quando expandido, com dwell de 0.3s pra abrir e 0.2s pra fechar. `ignoresMouseEvents` acompanha `isExpanded`, senão o painel invisível rouba clique da barra de menus.
+- **`Services/NotchScreen.swift`** — geometria da notch a partir do `NSScreen`: `hasNotch`, `notchWidth`, `notchTopInset`, `notchRect`, `isFullScreenActive` (heurística de `visibleFrame`, **ainda não verificada** com app real em fullscreen). Sem tela com notch (ex.: clamshell com monitor externo), o painel some — `targetScreen` não tem fallback.
 
 ## Princípios
 

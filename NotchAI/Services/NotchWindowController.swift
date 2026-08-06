@@ -18,12 +18,9 @@ final class NotchWindowController {
     private let hoverSlack: CGFloat = 6
 
     private func expandedSize(topInset: CGFloat, notchWidth: CGFloat) -> CGSize {
-        let sessionsHeight = agentMonitor.sessions.isEmpty
-            ? 0
-            : CGFloat(agentMonitor.sessions.count) * 36 + 24
-        return CGSize(
+        CGSize(
             width: max(notchWidth, 480),
-            height: topInset + 92 + sessionsHeight
+            height: max(notchState.contentHeight, topInset + 60)
         )
     }
 
@@ -66,6 +63,7 @@ final class NotchWindowController {
     private func installHostingView() {
         let root = NotchView()
             .environmentObject(agentMonitor)
+            .environmentObject(agentMonitor.permissionCenter)
             .environmentObject(notchState)
 
         let hosting = NSHostingView(rootView: root)
@@ -94,12 +92,20 @@ final class NotchWindowController {
             }
             .store(in: &cancellables)
 
-        agentMonitor.$sessions
-            .map(\.count)
+        notchState.$contentHeight
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.reposition()
+            }
+            .store(in: &cancellables)
+
+        agentMonitor.permissionCenter.$pending
+            .map(\.count)
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] count in
+                self?.pin(count > 0)
             }
             .store(in: &cancellables)
 
@@ -121,8 +127,22 @@ final class NotchWindowController {
         }
     }
 
+    private func pin(_ isPinned: Bool) {
+        notchState.isPinned = isPinned
+        hoverTicks = 0
+        reposition()
+
+        guard isPinned else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+            notchState.isExpanded = true
+        }
+    }
+
     private func updateHover() {
-        guard let screen = targetScreen, screen.hasNotch else { return }
+        guard let screen = targetScreen, screen.hasNotch, !notchState.isPinned else {
+            hoverTicks = 0
+            return
+        }
 
         let target = notchState.isExpanded ? panel.frame : hoverRect(on: screen)
         let inside = target.contains(NSEvent.mouseLocation)

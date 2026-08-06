@@ -3,6 +3,7 @@ import SwiftUI
 struct NotchView: View {
 
     @EnvironmentObject private var agentMonitor: AgentMonitor
+    @EnvironmentObject private var permissionCenter: PermissionCenter
     @EnvironmentObject private var notchState: NotchState
 
     var body: some View {
@@ -13,6 +14,9 @@ struct NotchView: View {
                 expanded
                     .frame(width: geo.size.width)
                     .padding(.top, notchState.topInset)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        notchState.contentHeight = $0
+                    }
             }
             .frame(
                 width: notchState.isExpanded ? geo.size.width : notchState.notchWidth,
@@ -36,14 +40,22 @@ struct NotchView: View {
                 Text("NotchAI")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Text("\(agentMonitor.activeCount) ativos")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.6))
+                if permissionCenter.pending.count > 1 {
+                    Text("\(permissionCenter.pending.count) pedidos")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                } else if permissionCenter.pending.isEmpty {
+                    Text("\(agentMonitor.activeCount) ativos")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             }
 
             Divider().overlay(.white.opacity(0.12))
 
-            if agentMonitor.sessions.isEmpty {
+            if !permissionCenter.pending.isEmpty {
+                permissionsSection
+            } else if agentMonitor.sessions.isEmpty {
                 agentsSection
             } else {
                 sessionsSection
@@ -55,6 +67,47 @@ struct NotchView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var permissionsSection: some View {
+        VStack(spacing: 8) {
+            ForEach(permissionCenter.pending) { request in
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "hand.raised.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                        Text("\(request.agentName) · \(request.projectName)")
+                            .font(.system(size: 12, weight: .semibold))
+                        Spacer()
+                        Text(request.toolName)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.55))
+                    }
+
+                    Text(request.summary)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: 8) {
+                        Spacer()
+                        Button("Negar") { permissionCenter.deny(request) }
+                            .buttonStyle(PermissionButtonStyle(tint: .red))
+                        Button("Permitir") { permissionCenter.allow(request) }
+                            .buttonStyle(PermissionButtonStyle(tint: .green))
+                    }
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.white.opacity(0.08))
+                )
+            }
+        }
     }
 
     private var sessionsSection: some View {
@@ -101,6 +154,23 @@ struct NotchView: View {
             }
             Spacer(minLength: 0)
         }
+    }
+}
+
+private struct PermissionButtonStyle: ButtonStyle {
+
+    let tint: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(
+                Capsule().fill(tint.opacity(configuration.isPressed ? 0.35 : 0.18))
+            )
+            .contentShape(Capsule())
     }
 }
 
