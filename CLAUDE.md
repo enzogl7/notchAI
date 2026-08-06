@@ -6,7 +6,7 @@ Guia para o Claude Code trabalhar neste repositório.
 
 App **open source para macOS** que monitora e gerencia **agentes de IA de desenvolvimento** (Claude Code, Codex CLI, Gemini CLI, OpenCode) a partir da **notch** e da **barra de menus**.
 
-O foco é ser um **centro de monitoramento, observabilidade e interação** com os agentes em execução: quais estão ativos, em qual projeto, em que estado (trabalhando, esperando input, pedindo permissão) — e **responder ao agente direto da notch** (aprovar/negar permissões) sem trocar de janela. A notch é a camada de apresentação (estilo Dynamic Island); o valor está no monitoramento e na interação.
+O foco é ser um **centro de monitoramento, observabilidade e interação** com os agentes em execução: quais estão ativos, em qual projeto, em que estado (trabalhando, esperando input, pedindo permissão) — e **responder ao agente direto da notch** (aprovar/negar permissões, escolher alternativas de uma pergunta) sem trocar de janela. A notch é a camada de apresentação (estilo Dynamic Island); o valor está no monitoramento e na interação.
 
 ## Stack
 

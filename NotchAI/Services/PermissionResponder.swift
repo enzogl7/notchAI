@@ -1,30 +1,35 @@
 import Foundation
 
 protocol PermissionResponder: Sendable {
-    func respond(to request: PermissionRequest, decision: PermissionDecision)
+    func respond(to request: AgentRequest, choice: AgentRequest.Option?)
 }
 
 struct ClaudeHookResponder: PermissionResponder {
 
     let server: EventServer
 
-    func respond(to request: PermissionRequest, decision: PermissionDecision) {
-        server.respond(requestId: request.id, json: Self.payload(for: decision))
+    func respond(to request: AgentRequest, choice: AgentRequest.Option?) {
+        server.respond(requestId: request.id, json: Self.payload(for: request, choice: choice))
     }
 
-    private static func payload(for decision: PermissionDecision) -> String? {
-        guard let behavior = decision.behavior else { return nil }
-        return #"{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"\#(behavior)"}}}"#
-    }
-}
+    static func payload(for request: AgentRequest, choice: AgentRequest.Option?) -> String? {
+        guard let choice else { return nil }
 
-private extension PermissionDecision {
+        switch request.kind {
+        case .permission:
+            return wrap(#"{"behavior":"\#(choice.id)"}"#)
 
-    var behavior: String? {
-        switch self {
-        case .allow: "allow"
-        case .deny: "deny"
-        case .deferredToAgent: nil
+        case .question(let text):
+            guard let data = request.rawToolInput,
+                  var input = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            input["answers"] = [text: choice.label]
+            guard let updated = try? JSONSerialization.data(withJSONObject: input),
+                  let json = String(data: updated, encoding: .utf8) else { return nil }
+            return wrap(#"{"behavior":"allow","updatedInput":\#(json)}"#)
         }
+    }
+
+    private static func wrap(_ decision: String) -> String {
+        #"{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":\#(decision)}}"#
     }
 }

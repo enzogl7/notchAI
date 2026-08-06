@@ -7,6 +7,7 @@ struct HookEvent: Sendable {
     let sessionId: String?
     let toolName: String?
     let toolInput: [String: String]
+    let rawToolInput: Data?
     let cwd: String?
     let permissionMode: String?
     let notificationType: String?
@@ -134,12 +135,15 @@ final class EventServer: @unchecked Sendable {
         guard !body.isEmpty,
               let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return nil }
 
+        let toolInput = json["tool_input"] as? [String: Any] ?? [:]
+
         return HookEvent(
             hookType: hookType,
             requestId: UUID().uuidString,
             sessionId: json["session_id"] as? String,
             toolName: json["tool_name"] as? String,
-            toolInput: flatten(json["tool_input"] as? [String: Any] ?? [:]),
+            toolInput: flatten(toolInput),
+            rawToolInput: try? JSONSerialization.data(withJSONObject: toolInput),
             cwd: json["cwd"] as? String,
             permissionMode: json["permission_mode"] as? String,
             notificationType: json["notification_type"] as? String,

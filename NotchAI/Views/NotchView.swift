@@ -74,7 +74,7 @@ struct NotchView: View {
             ForEach(permissionCenter.pending) { request in
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(spacing: 6) {
-                        Image(systemName: "hand.raised.fill")
+                        Image(systemName: request.kind.icon)
                             .font(.system(size: 10))
                             .foregroundStyle(.orange)
                         Text("\(request.agentName) · \(request.projectName)")
@@ -86,26 +86,52 @@ struct NotchView: View {
                     }
 
                     Text(request.summary)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(size: 11, design: request.kind.textDesign))
                         .foregroundStyle(.white.opacity(0.75))
-                        .lineLimit(2)
+                        .lineLimit(request.kind.textLineLimit)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    HStack(spacing: 8) {
-                        Spacer()
-                        Button("Negar") { permissionCenter.deny(request) }
-                            .buttonStyle(PermissionButtonStyle(tint: .red))
-                        Button("Permitir") { permissionCenter.allow(request) }
-                            .buttonStyle(PermissionButtonStyle(tint: .green))
-                    }
+                    options(for: request)
                 }
                 .padding(10)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
                         .fill(.white.opacity(0.08))
                 )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func options(for request: AgentRequest) -> some View {
+        if request.options.allSatisfy({ $0.description == nil }) {
+            HStack(spacing: 8) {
+                Spacer()
+                ForEach(request.options) { option in
+                    Button(option.label) { permissionCenter.choose(option, for: request) }
+                        .buttonStyle(PermissionButtonStyle(tint: option.tint))
+                }
+            }
+        } else {
+            VStack(spacing: 6) {
+                ForEach(request.options) { option in
+                    Button { permissionCenter.choose(option, for: request) } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(option.label)
+                                .font(.system(size: 12, weight: .medium))
+                            if let description = option.description {
+                                Text(description)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.white.opacity(0.55))
+                            }
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(ChoiceRowStyle())
+                }
             }
         }
     }
@@ -157,20 +183,87 @@ struct NotchView: View {
     }
 }
 
+private struct Hoverable<Content: View>: View {
+
+    let isPressed: Bool
+    let tint: Color
+    let base: Double
+    let hover: Double
+    let pressed: Double
+    @ViewBuilder let content: (Color) -> Content
+
+    @State private var isHovering = false
+
+    var body: some View {
+        content(tint.opacity(isPressed ? pressed : isHovering ? hover : base))
+            .onHover { isHovering = $0 }
+            .animation(.easeOut(duration: 0.14), value: isHovering)
+    }
+}
+
 private struct PermissionButtonStyle: ButtonStyle {
 
     let tint: Color
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .background(
-                Capsule().fill(tint.opacity(configuration.isPressed ? 0.35 : 0.18))
-            )
-            .contentShape(Capsule())
+        Hoverable(isPressed: configuration.isPressed, tint: tint, base: 0.18, hover: 0.3, pressed: 0.4) { fill in
+            configuration.label
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(fill))
+                .contentShape(Capsule())
+        }
+    }
+}
+
+private struct ChoiceRowStyle: ButtonStyle {
+
+    func makeBody(configuration: Configuration) -> some View {
+        Hoverable(isPressed: configuration.isPressed, tint: .white, base: 0.1, hover: 0.18, pressed: 0.24) { fill in
+            configuration.label
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(RoundedRectangle(cornerRadius: 8).fill(fill))
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+}
+
+private extension AgentRequest.Kind {
+
+    var icon: String {
+        switch self {
+        case .permission: "hand.raised.fill"
+        case .question: "questionmark.circle.fill"
+        }
+    }
+
+    var textDesign: Font.Design {
+        switch self {
+        case .permission: .monospaced
+        case .question: .default
+        }
+    }
+
+    var textLineLimit: Int {
+        switch self {
+        case .permission: 2
+        case .question: 3
+        }
+    }
+}
+
+private extension AgentRequest.Option {
+
+    var tint: Color {
+        switch id {
+        case "allow": .green
+        case "deny": .red
+        default: .white
+        }
     }
 }
 
