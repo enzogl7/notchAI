@@ -7,7 +7,8 @@ struct HookInstaller {
         .appending(path: ".claude/settings.json")
 
     private static let marker = "127.0.0.1:7749/NotchAI"
-    private static let versionedMarker = "\(marker)/v2"
+    private static let versionedMarker = "\(marker)/v3"
+    private static let originalStatusLineKey = "originalStatusLineCommand"
 
     private static let hookTypes = [
         "PreToolUse",
@@ -40,6 +41,7 @@ struct HookInstaller {
         }
 
         settings["hooks"] = hooks
+        settings["statusLine"] = installedStatusLine(settings["statusLine"] as? [String: Any])
         try write(settings)
     }
 
@@ -47,7 +49,41 @@ struct HookInstaller {
         var settings = load()
         let hooks = stripped(settings["hooks"] as? [String: Any] ?? [:])
         settings["hooks"] = hooks.isEmpty ? nil : hooks
+        settings["statusLine"] = restoredStatusLine(settings["statusLine"] as? [String: Any])
         try write(settings)
+    }
+
+    private static func installedStatusLine(_ current: [String: Any]?) -> [String: Any] {
+        var statusLine = current ?? ["type": "command"]
+        let existing = statusLine["command"] as? String
+
+        if existing?.contains(marker) != true {
+            UserDefaults.standard.set(existing, forKey: originalStatusLineKey)
+        }
+
+        let original = UserDefaults.standard.string(forKey: originalStatusLineKey)
+        let post = "curl -sf -m 2 -X POST 'http://\(versionedMarker)/\(EventServer.statusLinePath)'"
+            + " -H 'Content-Type: application/json' -d @- >/dev/null 2>&1"
+        var command = "p=$(cat); printf '%s' \"$p\" | \(post) &"
+        if let original, !original.isEmpty {
+            command += " printf '%s' \"$p\" | \(original)"
+        }
+
+        statusLine["command"] = command
+        return statusLine
+    }
+
+    private static func restoredStatusLine(_ current: [String: Any]?) -> [String: Any]? {
+        guard var statusLine = current,
+              (statusLine["command"] as? String)?.contains(marker) == true else { return current }
+
+        defer { UserDefaults.standard.removeObject(forKey: originalStatusLineKey) }
+
+        guard let original = UserDefaults.standard.string(forKey: originalStatusLineKey),
+              !original.isEmpty else { return nil }
+
+        statusLine["command"] = original
+        return statusLine
     }
 
     private static func stripped(_ hooks: [String: Any]) -> [String: Any] {

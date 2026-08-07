@@ -49,9 +49,10 @@ O Claude Code dispara hooks (`PreToolUse`, `PostToolUse`, `Stop`, `Notification`
 - **`Models/AgentSession.swift`** — sessão de um agente: `{ id (sessionId), agentName, projectPath, gitBranch, state, lastActivity }` + enum `SessionState` (`working` / `waitingForInput` / `waitingForPermission` / `idle`).
 - **`Services/ProcessMonitorService.swift`** — verifica presença via `pgrep -x <nome>`. Mantenha leve.
 - **`Services/ClaudeSessionService.swift`** — lê os transcripts JSONL em `~/.claude/projects/`; deriva a sessão (cwd/branch a partir do prefixo de 64KB do arquivo, estado a partir do mtime). Janela ativa de 600s; `working` <15s, `waitingForInput` <120s, `idle` além disso.
-- **`Services/EventServer.swift`** — servidor HTTP local TCP na porta 7749; recebe eventos de hooks do Claude Code e entrega ao `AgentMonitor` via closure `onEvent`.
-- **`Services/HookInstaller.swift`** — instala/remove os hooks no `~/.claude/settings.json` (com backup automático) na primeira execução; expõe `areInstalled`, `install()` e `remove()`.
-- **`Managers/AgentMonitor.swift`** — `@MainActor ObservableObject`. Polling a cada 2s; inicia o `EventServer` e o `HookInstaller` no `startMonitoring()`; aplica `waitingForPermission` em tempo real via `pendingPermissions` quando recebe `PreToolUse`.
+- **`Models/UsageQuota.swift`** — cota da conta: janelas de 5h e 7d (`usedPercentage`, `resetsAt`) + `readAt`. `valid` descarta janela já resetada; persiste em `UserDefaults`.
+- **`Services/EventServer.swift`** — servidor HTTP local TCP na porta 7749; recebe eventos de hooks do Claude Code e entrega ao `AgentMonitor` via closure `onEvent`. `POST /StatusLine` traz o `rate_limits` do JSON da statusline e sai pela closure `onStatusLine`.
+- **`Services/HookInstaller.swift`** — instala/remove os hooks e a `statusLine` no `~/.claude/settings.json` (com backup automático) na primeira execução; expõe `areInstalled`, `install()` e `remove()`. A statusLine instalada **encadeia** o comando anterior (guardado em `UserDefaults`) e faz o `POST` em background — ela roda a cada render, então nunca pode bloquear.
+- **`Managers/AgentMonitor.swift`** — `@MainActor ObservableObject`. Polling a cada 2s; inicia o `EventServer` e o `HookInstaller` no `startMonitoring()`; aplica `waitingForPermission` em tempo real via `pendingPermissions` quando recebe `PreToolUse`; publica `quota` a partir do `onStatusLine`.
 
 **Apresentação:**
 

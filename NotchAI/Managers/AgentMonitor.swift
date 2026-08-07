@@ -6,6 +6,7 @@ final class AgentMonitor: ObservableObject {
 
     @Published var agents: [Agent] = Agent.builtIn
     @Published var sessions: [AgentSession] = []
+    @Published var quota: UsageQuota? = UsageQuota.stored
 
     static let liveWorkingWindow: TimeInterval = 15
 
@@ -39,6 +40,12 @@ final class AgentMonitor: ObservableObject {
 
         eventServer.onEvent = { [weak self] event in
             Task { @MainActor in self?.handle(event) }
+        }
+        eventServer.onStatusLine = { [weak self] quota in
+            Task { @MainActor in
+                self?.quota = quota.valid
+                UsageQuota.store(quota.valid)
+            }
         }
         eventServer.start()
 
@@ -99,6 +106,7 @@ final class AgentMonitor: ObservableObject {
             await MainActor.run {
                 self.agents = updated
                 self.sessions = self.decorate(polledSessions)
+                self.quota = self.quota?.valid
             }
         }
     }

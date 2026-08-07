@@ -22,6 +22,13 @@ private struct MenuBarLabel: View {
 
     var body: some View {
         Image(systemName: "brain")
-        Text("\(agentMonitor.activeCount)")
+        Text(label)
+    }
+
+    private var label: String {
+        guard let used = agentMonitor.quota?.fiveHour?.usedPercentage else {
+            return "\(agentMonitor.activeCount)"
+        }
+        return "\(agentMonitor.activeCount) · \(Int(used.rounded()))%"
     }
 }

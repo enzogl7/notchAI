@@ -18,8 +18,10 @@ final class EventServer: @unchecked Sendable {
 
     static let port: UInt16 = 7749
     static let permissionHook = "PermissionRequest"
+    static let statusLinePath = "StatusLine"
 
     var onEvent: ((HookEvent) -> Void)?
+    var onStatusLine: ((UsageQuota) -> Void)?
 
     private var listener: NWListener?
     private let lock = NSLock()
@@ -73,6 +75,11 @@ final class EventServer: @unchecked Sendable {
     }
 
     private func process(_ request: Request, on connection: NWConnection) {
+        if request.hookType == Self.statusLinePath {
+            if let quota = Self.decodeQuota(body: request.body) { onStatusLine?(quota) }
+            return send(nil, on: connection)
+        }
+
         guard let event = Self.decode(body: request.body, hookType: request.hookType) else {
             return send(nil, on: connection)
         }
@@ -149,6 +156,25 @@ final class EventServer: @unchecked Sendable {
             notificationType: json["notification_type"] as? String,
             transcriptPath: json["transcript_path"] as? String
         )
+    }
+
+    private static func decodeQuota(body: Data) -> UsageQuota? {
+        guard !body.isEmpty,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return nil }
+
+        let limits = json["rate_limits"] as? [String: Any] ?? [:]
+        return UsageQuota(
+            fiveHour: window(limits["five_hour"]),
+            sevenDay: window(limits["seven_day"]),
+            readAt: Date()
+        )
+    }
+
+    private static func window(_ value: Any?) -> UsageQuota.Window? {
+        guard let dict = value as? [String: Any],
+              let used = dict["used_percentage"] as? Double,
+              let resetsAt = dict["resets_at"] as? Double else { return nil }
+        return UsageQuota.Window(usedPercentage: used, resetsAt: Date(timeIntervalSince1970: resetsAt))
     }
 
     private static func flatten(_ input: [String: Any]) -> [String: String] {

@@ -62,6 +62,11 @@ struct NotchView: View {
                 Divider().overlay(.white.opacity(0.12))
                 agentsSection
             }
+
+            if permissionCenter.pending.isEmpty, let quota = agentMonitor.quota {
+                Divider().overlay(.white.opacity(0.12))
+                quotaSection(quota)
+            }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 16)
@@ -164,6 +169,39 @@ struct NotchView: View {
         }
     }
 
+    private func quotaSection(_ quota: UsageQuota) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let fiveHour = quota.fiveHour { quotaRow("5h", fiveHour) }
+            if let sevenDay = quota.sevenDay { quotaRow("7d", sevenDay) }
+
+            Text("lido às \(quota.readAt.formatted(date: .omitted, time: .shortened))")
+                .font(.system(size: 9))
+                .foregroundStyle(.white.opacity(0.35))
+        }
+    }
+
+    private func quotaRow(_ title: String, _ window: UsageQuota.Window) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.5))
+                .frame(width: 18, alignment: .leading)
+
+            ProgressView(value: min(max(window.usedPercentage, 0), 100), total: 100)
+                .tint(window.tint)
+
+            Text("\(Int(window.usedPercentage.rounded()))%")
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .frame(width: 34, alignment: .trailing)
+
+            Text(window.resetsAt, style: .relative)
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.45))
+                .lineLimit(1)
+                .frame(width: 72, alignment: .trailing)
+        }
+    }
+
     private var agentsSection: some View {
         HStack(spacing: 18) {
             ForEach(agentMonitor.agents) { agent in
@@ -263,6 +301,17 @@ private extension AgentRequest.Option {
         case "allow": .green
         case "deny": .red
         default: .white
+        }
+    }
+}
+
+private extension UsageQuota.Window {
+
+    var tint: Color {
+        switch usedPercentage {
+        case ..<70: .green
+        case ..<90: .orange
+        default: .red
         }
     }
 }
