@@ -35,24 +35,6 @@ struct NotchView: View {
 
     private var expanded: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "brain")
-                Text("NotchAI")
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer()
-                if permissionCenter.pending.count > 1 {
-                    Text("\(permissionCenter.pending.count) pedidos")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.orange)
-                } else if permissionCenter.pending.isEmpty {
-                    Text("\(agentMonitor.activeCount) ativos")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-            }
-
-            Divider().overlay(.white.opacity(0.12))
-
             if !permissionCenter.pending.isEmpty {
                 permissionsSection
             } else if agentMonitor.sessions.isEmpty {
